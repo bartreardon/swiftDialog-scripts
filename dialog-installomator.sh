@@ -3,6 +3,8 @@
 # bash script that will take a list of installomator labels and run through each
 # displays's a dialog with the list of applications and their progress
 #
+# Requires Dialog v1.9.1 or later https://github.com/bartreardon/Dialog/releases
+#
 # ©2022 Bart Reardon
 
 # List of Installomator labels to process
