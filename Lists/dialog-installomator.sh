@@ -131,7 +131,12 @@ for label in "${labels[@]}"; do
 			*"##################"*)	
 			;;
 			*)
-				progress_text=$(echo $line | awk '{for(i=4;i<=NF;i++){printf "%s ", $i}; printf "\n"}')
+				# Installomator v8
+				#progress_text=$(echo $line | awk '{for(i=4;i<=NF;i++){printf "%s ", $i}; printf "\n"}')
+				
+				# Installomator v9
+				progress_text=$(echo $line | awk -F " : " '{print $NF}')
+				
 				if [[ ! -z  $progress_text ]]; then
 					dialog_command "progresstext: $progress_text"
 					dialog_command "progress: increment"
