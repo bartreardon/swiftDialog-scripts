@@ -30,7 +30,11 @@ installomator="/path/to/Installomator.sh"
 # take an installomator label and output the full app name
 function label_to_name(){
 	name=$(grep -A2 "${1})" "$installomator" | grep "name=" | awk -F '=' '{print $NF}')
-	echo $name
+	if [[ ! -z $name ]]; then
+		echo $name
+	else
+		echo $1
+	fi
 }
 
 # execute a dialog command
@@ -94,7 +98,9 @@ for label in "${labels[@]}"; do
 	appname=$(label_to_name $label | tr -d "\"")
 	dialog_command "listitem: $appname: wait"
 	dialog_command "progresstext: Installing $label" 
-	while IFS= read -r line; do  	
+	installomator_error=0
+	installomator_error_message=""
+	while IFS= read -r line; do
 		case $line in
 			*"DEBUG"*)
 			;;
@@ -105,7 +111,11 @@ for label in "${labels[@]}"; do
 			*"LOGO"*)
 				logofile=$(echo $line | awk -F "=" '{print $NF}')
   				dialog_command "icon: $logofile"
-			;;	
+			;;
+			*"ERROR"*)
+			    installomator_error=1
+			    installomator_error_message=$(echo $line | awk -F "ERROR: " '{print $NF}')
+			;;
 			*"##################"*)	
 			;;
 			*)
@@ -119,8 +129,13 @@ for label in "${labels[@]}"; do
 	
 	done < <($installomator $label)
 	
-	dialog_command "progresstext: Install of $appname complete"
-	dialog_command "listitem: $appname: ✅"
+	if [[ $installomator_error -eq 1 ]]; then
+		dialog_command "progresstext: Install Failed for $appname"
+		dialog_command "listitem: $appname: $installomator_error_message ❌"
+	else
+		dialog_command "progresstext: Install of $appname complete"
+		dialog_command "listitem: $appname: ✅"
+	fi
 	progress_index=$(( $progress_index + 1 ))
 	echo "at item number $progress_index"
 	
