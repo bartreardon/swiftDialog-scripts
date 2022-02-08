@@ -25,6 +25,11 @@ dialogApp="/usr/local/bin/dialog"
 dialog_command_file="/var/tmp/dialog.log"
 installomator="/path/to/Installomator.sh"
 
+if [[ ! -e $installomator ]]; then
+	echo "Installomator not found at path $installomator"
+	exit 1
+fi
+
 # *** functions
 
 # take an installomator label and output the full app name
