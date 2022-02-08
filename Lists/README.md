@@ -21,3 +21,4 @@ update the installomator script path
 
 `installomator="/path/to/Installomator.sh"`
 
+![image](https://user-images.githubusercontent.com/3598965/152978464-1b602a68-da97-431a-8f79-1d899cb4fccb.png)
