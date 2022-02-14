@@ -25,6 +25,7 @@ dialogApp="/usr/local/bin/dialog"
 dialog_command_file="/var/tmp/dialog.log"
 installomator="/path/to/Installomator.sh"
 
+
 # check we are running as root
 if [[ $(id -u) -ne 0 ]]; then
 	echo "This script should be run as root"
