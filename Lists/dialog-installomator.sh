@@ -75,7 +75,14 @@ progress_total=$(( $output_steps_per_app \* $number_of_apps ))
 # initial dialog starting arguments
 title="Installing Applications"
 message="Please wait while we download and install the following applications:"
-icon="SF=desktopcomputer.and.arrow.down,weight=thin,colour1=#51a3ef,colour2=#5154ef"
+
+# set icon based on whether computer is a desktop or laptop
+hwType=$(/usr/sbin/system_profiler SPHardwareDataType | grep "Model Identifier" | grep "Book")	
+if [ "$hwType" != "" ]; then
+	icon="SF=laptopcomputer.and.arrow.down,weight=thin,colour1=#51a3ef,colour2=#5154ef"
+	else
+	icon="SF=desktopcomputer.and.arrow.down,weight=thin,colour1=#51a3ef,colour2=#5154ef"
+fi
 
 dialogCMD="$dialogApp -p --title \"$title\" \
 --message \"$message\" \
