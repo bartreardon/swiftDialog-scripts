@@ -44,7 +44,7 @@ fi
 function label_to_name(){
 	#name=$(grep -A2 "${1})" "$installomator" | grep "name=" | head -1 | cut -d '"' -f2) # pre Installomator 9.0
 	name=$(${installomator} ${1} RETURN_LABEL_NAME=1 LOGGING=REQ | tail -1)
-	if [[ ! -z $name ]]; then
+	if [[ "$itemName" != "#" ]]; then
 		echo $name
 	else
 		echo $1
