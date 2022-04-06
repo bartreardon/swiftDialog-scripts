@@ -2,7 +2,7 @@
 
 ## updatePrompt.sh
 
-This script presents a Nudge style update prompt that looks for the requires OS version and presents an update notification if the requirements are not met.
+This script presents a [Nudge](https://github.com/macadmins/nudge) style update prompt that looks for the requires OS version and presents an update notification if the requirements are not met.
 
 This script doesn't perform any type of processing or checking and will re-direct the user to System Preferences -> Software Update pannel.
 
