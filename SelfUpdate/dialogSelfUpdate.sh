@@ -45,14 +45,14 @@ function dialogInstall(){
     /bin/rm -Rf "$tempDirectory"  
 }
 
+# this will just check to see if swiftDialog is installed and if not, install the latest version
 echo "checking with no version"
 dialogCheck
 
+# this will check to see if swiftDialog is at a mimimum version of 1.9
 echo "checking with version 1.9"
-dialogCheck 1.10
+dialogCheck 1.9
 
-echo "checking with version 1.10"
-dialogCheck 1.10
-
-echo "checking with version 1.11"
-dialogCheck 1.11
+# this will check for a version that does not (yet) exist. until this version is released it will always run the download and install.
+echo "checking with version 2.0"
+dialogCheck 2.0
