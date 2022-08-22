@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Short script that will take a list of defined app bundle ID's and if detected will cause the script to exit
 # Useful if you want to perform some action that will have user impact (e.g. display a message or force some interaction)
-# but not take that action if a user is using a particular application, e.g. on an active video converence. 
+# but not take that action if a user is using a particular application, e.g. on an active video conference. 
 
 # array of bundleID's that will cause this script to exit if they are detected as being the frontmost app.
 DNDApps=(
