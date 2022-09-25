@@ -78,8 +78,7 @@ title="Installing Applications"
 message="Please wait while we download and install the following applications:"
 
 # set icon based on whether computer is a desktop or laptop
-hwType=$(/usr/sbin/system_profiler SPHardwareDataType | grep "Model Identifier" | grep "Book")	
-if [ "$hwType" != "" ]; then
+if system_profiler SPPowerDataType | grep -q "Battery Power"; then
 	icon="SF=laptopcomputer.and.arrow.down,weight=thin,colour1=#51a3ef,colour2=#5154ef"
 	else
 	icon="SF=desktopcomputer.and.arrow.down,weight=thin,colour1=#51a3ef,colour2=#5154ef"
@@ -157,10 +156,10 @@ for label in "${labels[@]}"; do
 	
 	if [[ $installomator_error -eq 1 ]]; then
 		dialog_command "progresstext: Install Failed for $appname"
-		dialog_command "listitem: $appname: $installomator_error_message ❌"
+		dialog_command "listitem: $appname: error"
 	else
 		dialog_command "progresstext: Install of $appname complete"
-		dialog_command "listitem: $appname: ✅"
+		dialog_command "listitem: $appname: success"
 	fi
 	progress_index=$(( $progress_index + 1 ))
 	echo "at item number $progress_index"
