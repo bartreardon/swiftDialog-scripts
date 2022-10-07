@@ -36,7 +36,7 @@ function dialogcmd() {
 
 function launchDialog() {
 	updatelog "launching main dialog"
-    open -a "/Library/Application Support/Dialog/Dialog.app" --args --mini --title "Running ${policyname}" --icon "${icon}" --message "Please wait while ${policyname} is installed" --progress 8 --commandfile "${dialog_log}"
+    open -a "/Library/Application Support/Dialog/Dialog.app" --args --mini --title "${policyname}" --icon "${icon}" --message "Please wait while ${policyname} is installed" --progress 8 --commandfile "${dialog_log}"
     updatelog "main dialog running in the background with PID $PID"
 }
 
