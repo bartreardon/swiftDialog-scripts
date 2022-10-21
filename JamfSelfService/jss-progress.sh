@@ -19,7 +19,7 @@ policyTrigger="${5}"   # jamf parameter $5
 icon="${6}"       # jamf parameter $6
 
 if [[ -z $6 ]]; then
-    icon="/Library/Application Support/JAMF/bin/Management Action.app/Contents/MacOS/Management Action"
+    icon=$( defaults read /Library/Preferences/com.jamfsoftware.jamf.plist self_service_app_path )
 fi
 
 # In case we want the start of the log format including the hour, e.g. "Mon Aug 08 11"
