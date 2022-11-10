@@ -46,7 +46,7 @@ UserPromptJSON='{
 tempfile=$(mktemp)
 echo $UserPromptJSON > $tempfile
 
-dialogcmd="/Users/rea094/Library/Developer/Xcode/DerivedData/dialog-anicpqacfliuhtfvaslmyvexkwkn/Build/Products/Debug/Dialog.app/Contents/MacOS/Dialog"
+dialogcmd="/usr/local/bin/dialog"
 
 # run dialog and store the JSON results in a variable
 #${dialogcmd} --jsonfile $tempfile --json
