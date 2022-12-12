@@ -4,7 +4,7 @@
 
 This script presents a [Nudge](https://github.com/macadmins/nudge) style update prompt that looks for the requires OS version and presents an update notification if the requirements are not met.
 
-This script doesn't perform any type of processing or checking and will re-direct the user to System Preferences -> Software Update pannel.
+This script doesn't perform any type of processing or checking and will re-direct the user to System Preferences -> Software Update panel.
 
 ![image](https://user-images.githubusercontent.com/3598965/161907377-d9187317-eb88-459a-84cc-589ec10387e5.png)
 
