@@ -141,9 +141,11 @@ loggedInUser=${3:-$(stat -f%Su /dev/console)}
 requiredOSVer=${4:-$(getCurrentReleaseFor $OSVer)}
 daysUntilRequired=${5:-14}
 infolink=${6:-"$(appleReleaseNotesURL $OSVer)"}
-supportText=${7}
-macosIcon=${8:-"$(iconForMajorVer $majorVersion)"}
-dialogVersion=${9:-"2.3.2"}  # required
+maxdeferrals=${6:-5}
+infolink=${7:-"$(appleReleaseNotesURL $OSVer)"}
+supportText=${8}
+macosIcon=${9:-"$(iconForMajorVer $majorVersion)"}
+dialogVersion=${10:-"2.3.2"}  # required
 
 requiredOSText="the latest version of macOS"
 dialogHeight=480
@@ -190,7 +192,6 @@ fi
 dialogCheck "$dialogVersion"
 
 defarralskey="deferrals_${requiredOSVer}"
-maxdeferrals="5"
 blurscreen="noblur"
 
 
