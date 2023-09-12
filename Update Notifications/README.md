@@ -22,7 +22,7 @@ This script doesn't perform any actual installing and will simply re-direct the 
 9 - swiftDialog Version - default "2.3.2" - specifies the minimum version of swiftDialog for this script.
 ```
 
-<img width="1012" alt="image" src="https://github.com/bartreardon/swiftDialog-scripts/assets/3598965/a03b2a29-7609-49f9-b36c-c000d90cb34e">
+<img width="550" alt="image" src="https://github.com/bartreardon/swiftDialog-scripts/assets/3598965/a03b2a29-7609-49f9-b36c-c000d90cb34e">
 
 
 
