@@ -9,32 +9,68 @@
 # Parameters:
 #  All parameters are optional
 # 4 - Required version. Defaults to the latest versions available for the major release of the OS running the script
-# 5 - Required By Date in YYYYMMDD format
+# 5 - Days until required. This many days after the release date the prompt will be shown.
 # 6 - infolink - defaults to https://support.apple.com/en-au/HT201222
 # 7 - support text - Extra informational text inserted into the message (e.g. "For help please contact the [Help Desk](https://link.to/helpdesk)" )
 # 8 - Icon - defaults to the Apple logo SF symbol
 # 9 - swiftDialog version required - defaults to v2.3.2. If installed version is older, swiftDialog will be updated.
 
+appleProductJSON=$(curl -sL https://gdmf.apple.com/v2/pmv)
+today=$(date "+%Y-%m-%d")
 
-macOSLatest() {
-    # Determines what the latest available version is of macOS from the passed in major version
-    majorversion=$(echo ${1:-$(sw_vers | grep "ProductVersion" | awk '{print $NF}')} | awk -F "." '{print $1}')
+getMajorVersion() {
+    echo $1 | awk -F "." '{print $1}'
+}
 
-    declare -A macosVer=(
-    [14]="Sonoma"
-    [13]="Ventura"
-    [12]="Monterey"
-    [11]="Big Sur"
-    [10]="Unsupported"
+iconForMajorVer() {
+    # OS icons gethered from the App Store
+    majorversion=$1
+
+    declare -A macosIcon=(
+    [13]="https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/01/11/29/01112962-0b21-4351-3e51-28dc1d7fe0a7/ProductPageIcon.png/460x0w.webp"
+    [12]="https://is1-ssl.mzstatic.com/image/thumb/Purple116/v4/fc/5f/46/fc5f4610-1647-e0bb-197d-a5a447ec3965/ProductPageIcon.png/460x0w.webp"
+    [11]="https://is1-ssl.mzstatic.com/image/thumb/Purple116/v4/48/4b/eb/484beb20-2c97-1f72-cc11-081b82b1f920/ProductPageIcon.png/460x0w.webp"
     )
-    osName=${macosVer[$majorversion]}
+    iconURL=${macosIcon[$majorversion]}
 
-    if [[ $majorversion -gt 10 ]]; then
-        macOSLatest=$(curl -sL "https://support.apple.com/en-au/HT201260" | grep -i "<td>macOS ${osName}" -A2 | tail -n1 | sed -e 's/<[^>]*>//g')
-        echo ${macOSLatest}
+    if [[ -n $iconURL ]]; then
+        echo ${iconURL}
     else 
-        echo ""
+        echo "sf=applelogo"
     fi
+}
+
+json_value() { # Version 2023.7.24-1 - Copyright (c) 2023 Pico Mitchell - MIT License - Full license and help info at https://randomapplications.com/json_value
+	{ set -- "$(/usr/bin/osascript -l 'JavaScript' -e 'function run(argv) { let out = argv.pop(); if ($.NSFileManager.defaultManager.fileExistsAtPath(out))' \
+		-e 'out = $.NSString.stringWithContentsOfFileEncodingError(out, $.NSUTF8StringEncoding, ObjC.wrap()).js; if (/^\s*[{[]/.test(out)) out = JSON.parse(out)' \
+		-e 'argv.forEach(key => { out = (Array.isArray(out) ? (/^-?\d+$/.test(key) ? (key = +key, out[key < 0 ? (out.length + key) : key]) : (key === "=" ?' \
+		-e 'out.length : undefined)) : (out instanceof Object ? out[key] : undefined)); if (out === undefined) throw "Failed to retrieve key/index: " + key })' \
+		-e 'return (out instanceof Object ? JSON.stringify(out, null, 2) : out) }' -- "$@" 2>&1 >&3)"; } 3>&1
+	[ "${1##* }" != '(-2700)' ] || { set -- "json_value ERROR${1#*Error}"; >&2 printf '%s\n' "${1% *}"; false; }
+}
+
+getCurrentReleaseFor() {
+    checkrelease=$1
+    count=$(json_value 'PublicAssetSets' 'macOS' '=' "${appleProductJSON}")
+
+    for index in {0..$(( $count - 1 ))}; do
+        assetSetVer=$(json_value 'PublicAssetSets' 'macOS' $index 'ProductVersion' "${appleProductJSON}")
+        if [[ $(getMajorVersion $assetSetVer) == $(getMajorVersion $checkrelease) ]]; then
+            echo ${assetSetVer}
+        fi
+    done
+}
+
+getReleaseDateFor() {
+    checkrelease=$1
+    count=$(json_value 'AssetSets' 'macOS' '=' "${appleProductJSON}")
+
+    for index in {0..$(( $count - 1 ))}; do
+        assetSetVer=$(json_value 'AssetSets' 'macOS' $index 'ProductVersion' "${appleProductJSON}")
+        if [[ "$assetSetVer" == "$checkrelease" ]]; then
+            echo $(json_value 'AssetSets' 'macOS' $index 'PostingDate' "${appleProductJSON}")
+        fi
+    done
 }
 
 dialogCheck() {
@@ -84,18 +120,24 @@ dialogcli="/usr/local/bin/dialog"
 jamfhelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
 OSVer=$(sw_vers | grep "ProductVersion" | awk '{print $NF}')
-mode=${1}
-computerName=${2}
-loggedInUser=${3}
-requiredOSVer=${4:-$(macOSLatest)}
-requiredByDate=${5} # YYYYMMDD format
+majorVersion=$(getMajorVersion $OSVer)
+modelName=$( /usr/libexec/PlistBuddy -c 'Print :0:_items:0:machine_name' /dev/stdin <<< "$(system_profiler -xml SPHardwareDataType)" )
+
+mode=${1:-"/"}
+computerName=${2:-$(hostname -s)}
+loggedInUser=${3:-$(stat -f%Su /dev/console)}
+requiredOSVer=${4:-$(getCurrentReleaseFor $OSVer)}
+daysUntilRequired=${5:-14}
 infolink=${6:-"https://support.apple.com/en-au/HT201222"}
 supportText=${7}
-macosIcon=${8:-"sf=applelogo"}
+macosIcon=${8:-"$(iconForMajorVer $majorVersion)"}
 dialogVersion=${9:-"2.3.2"}  # required
 
 requiredOSText="the latest version of macOS"
-current_date=$(date +'%Y%m%d')
+dialogHeight=480
+if [[ -n $supportText ]]; then
+    ((dialogHeight+=28))
+fi 
 
 if [[ -z ${requiredOSVer} ]] || [[ "$requiredOSVer" == "Unsupported" ]]; then
     requiredOSVer="100"
@@ -104,6 +146,7 @@ else
 fi
 
 if [[ "$mode" == "test" ]]; then
+    # set the OS ver to something old
     OSVer="13.4.0"
 fi
 
@@ -117,6 +160,19 @@ else
     echo "Device is running ${OSVer} and needs to be on ${requiredOSVer}"
 fi
 
+# get latest release info
+latestRelease=$(getCurrentReleaseFor $OSVer)
+releaseDate=$(getReleaseDateFor $latestRelease)
+requiredByDate=$(date -j -f %Y-%m-%d -v+${daysUntilRequired}d "$releaseDate" +%Y-%m-%d)
+requiredby="This update is required after **$(date -j -f %Y-%m-%d "${requiredByDate}" "+%A %B %d, %Y")**"
+
+if [[ $today < $requiredByDate ]]; then
+    echo "Update prompt not required until $requiredByDate"
+    exit 0
+else
+    echo "Update is now required. Requirement date $requiredByDate"
+fi
+
 
 # check dialog is installed and up to date
 dialogCheck "$dialogVersion"
@@ -125,16 +181,8 @@ defarralskey="deferrals_${requiredOSVer}"
 maxdeferrals="5"
 blurscreen="noblur"
 
-requiredby=""
-if [[ -n $requiredByDate ]]; then
-    if [ "$current_date" -lt  "$requiredByDate" ]; then
-        requiredby="This update is required by **$(date -j -f "%Y%m%d" "$requiredByDate" "+%A %B %d, %Y")**"
-    else
-        requiredby="This update is required **immediately**"
-        maxdeferrals="0"
-    fi
-else
-fi
+
+echo "Latest release is $latestRelease released on $releaseDate"
 
 # work out remaining deferrals"
 appdomain="au.csiro.macosupdates"
@@ -162,9 +210,9 @@ bannerimage="/Users/${loggedInUser}/Library/Application Support/com.jamfsoftware
 title="macOS Update Available"
 titlefont="shadow=1"
 icon="/System/Library/PreferencePanes/SoftwareUpdate.prefPane"
-message="## macOS **${requiredOSText}** is available for install
+message="## **${requiredOSText}** is available for install
 
-This deviceis running macOS version ${OSVer} 
+Your ${modelName} is running macOS version ${OSVer} 
 
 It is important that you update to **${requiredOSText}** at your earliest convenience. Click the More Information button below for additional details.
 
@@ -175,22 +223,26 @@ ${supportText}
 ${requiredby}"
 
 infotext="More Information"
-icon="/Applications/Software Centre.app"
-overlay="caution"
+# Create `overlayicon` from Self Service's custom icon
+xxd -p -s 260 "$(defaults read /Library/Preferences/com.jamfsoftware.jamf self_service_app_path)"/Icon$'\r'/..namedfork/rsrc | xxd -r -p > /var/tmp/overlayicon.icns
+overlayicon="/var/tmp/overlayicon.icns"
+
 button1text="Open Software Update"
 buttona1ction="open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane"
 #button2text="Contact the Service Centre"
 #button2action="https://go.csiro.au/FwLink/LogAFault"
 
 runDialog () {
-    ${dialogcli} -p -o -d --height 550 --width 900 \
+    ${dialogcli} -p -o -d \
+                --height ${dialogHeight} \
+                --width 900 \
                 --title "${title}" \
                 --titlefont ${titlefont} \
                 --bannerimage "${bannerimage}" \
                 --bannertitle \
                 --icon "${macosIcon}" \
                 --iconsize 180 \
-                -y "${icon}" \
+                --overlayicon "${overlay}" \
                 --message "${message}" \
                 --infobuttontext "${infotext}" \
                 --infobuttonaction "${infolink}" \
