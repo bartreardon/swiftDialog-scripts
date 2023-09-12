@@ -4,9 +4,12 @@
 
 This script presents a [Nudge](https://github.com/macadmins/nudge) style update prompt that looks for the requires OS version and presents an update notification if the requirements are not met.
 
-This script doesn't perform any type of processing or checking and will re-direct the user to System Preferences -> Software Update panel.
+Can determine the latest version of the installed OS so easy to keep running as an ongoing policy and users will receive the update automatically (sane policy triggers/conditions are encouraged)
 
-![image](https://user-images.githubusercontent.com/3598965/161907377-d9187317-eb88-459a-84cc-589ec10387e5.png)
+This script doesn't perform any actual installing and will simply re-direct the user to System Preferences/Settings -> Software Update panel.
+
+<img width="650" alt="image" src="https://github.com/bartreardon/swiftDialog-scripts/assets/3598965/325a65ba-dbfd-4caf-93c0-4872a8d6a5ac">
+
 
 ## appupdate_with_deferral.sh
 
