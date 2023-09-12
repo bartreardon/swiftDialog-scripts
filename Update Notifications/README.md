@@ -17,9 +17,10 @@ This script doesn't perform any actual installing and will simply re-direct the 
 4 - required OS Version - defaults to the latest release for the major version of the current OS
 5 - days Until Required - default 14. Days to wait after the release date to force the prompt. 0 = immediate
 6 - infolink - default "https://support.apple.com/en-au/HT201222". Long for the Info button
-7 - support Text - additional text you want inserted into the message (e.g. "For any questions please contact the [Help Desk](https://help.desk/link)"
-8 - Icon - defaults to the OS version icon for the current release (supports macOS 11, 12 and 13)
-9 - swiftDialog Version - default "2.3.2" - specifies the minimum version of swiftDialog for this script.
+7 - max deferrals - number of deferrals a user has. Default is 5. Set to 0 to disable
+8 - support Text - additional text you want inserted into the message (e.g. "For any questions please contact the [Help Desk](https://help.desk/link)"
+9 - Icon - defaults to the OS version icon for the current release (supports macOS 11, 12 and 13)
+10 - swiftDialog Version - default "2.3.2" - specifies the minimum version of swiftDialog for this script.
 ```
 
 <img width="550" alt="image" src="https://github.com/bartreardon/swiftDialog-scripts/assets/3598965/a03b2a29-7609-49f9-b36c-c000d90cb34e">
