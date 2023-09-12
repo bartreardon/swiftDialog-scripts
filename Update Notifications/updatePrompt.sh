@@ -73,6 +73,18 @@ getReleaseDateFor() {
     done
 }
 
+appleReleaseNotesURL() {
+    releaseVer=$1
+    securityReleaseURL="https://support.apple.com/en-au/HT201222"
+    HT201222=$(curl -sL ${securityReleaseURL})
+    releaseNotesURL=$(echo $HT201222 | grep "${releaseVer}</a>" | sed -r 's/.*href="([^"]+).*/\1/g')
+    if [[ -n $releaseNotesURL ]]; then
+        echo $releaseNotesURL
+    else
+        echo $securityReleaseURL
+    fi
+}
+
 dialogCheck() {
 	local dialogApp="/Library/Application Support/Dialog/Dialog.app"
 	local installedappversion=$(defaults read "${dialogApp}/Contents/Info.plist" CFBundleShortVersionString || echo 0)
@@ -128,7 +140,7 @@ computerName=${2:-$(hostname -s)}
 loggedInUser=${3:-$(stat -f%Su /dev/console)}
 requiredOSVer=${4:-$(getCurrentReleaseFor $OSVer)}
 daysUntilRequired=${5:-14}
-infolink=${6:-"https://support.apple.com/en-au/HT201222"}
+infolink=${6:-"$(appleReleaseNotesURL $OSVer)"}
 supportText=${7}
 macosIcon=${8:-"$(iconForMajorVer $majorVersion)"}
 dialogVersion=${9:-"2.3.2"}  # required
