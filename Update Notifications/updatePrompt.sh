@@ -9,11 +9,12 @@
 # Parameters:
 #  All parameters are optional
 # 4 - Required version. Defaults to the latest versions available for the major release of the OS running the script
-# 5 - Days until required. This many days after the release date the prompt will be shown.
-# 6 - infolink - defaults to https://support.apple.com/en-au/HT201222
-# 7 - support text - Extra informational text inserted into the message (e.g. "For help please contact the [Help Desk](https://link.to/helpdesk)" )
-# 8 - Icon - defaults to the Apple logo SF symbol
-# 9 - swiftDialog version required - defaults to v2.3.2. If installed version is older, swiftDialog will be updated.
+# 5 - Days until required. This many days after the release date the prompt will be shown. Default is 14
+# 6 - infolink - defaults to the release notes for the particular release if they can be determined, otherwise https://support.apple.com/en-au/HT201222
+# 7 - Max deferrals - set the number of deferrals allowed (default 5 - set to 0 to disable)
+# 8 - support text - Extra informational text inserted into the message (e.g. "For help please contact the [Help Desk](https://link.to/helpdesk)" )
+# 9 - Icon - defaults to the OS icon for the major release if it can be determined, otherwise Apple logo SF symbol
+# 10 - swiftDialog version required - defaults to v2.3.2. If installed version is older, swiftDialog will be updated.
 
 appleProductJSON=$(curl -sL https://gdmf.apple.com/v2/pmv)
 today=$(date "+%Y-%m-%d")
