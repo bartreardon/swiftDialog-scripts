@@ -36,27 +36,6 @@ labelFromInstallomator() {
     echo "${RAWInstallomatorURL}/fragments/labels/$1.sh"
 }
 
-checkExistingVersion() {
-    key=$1
-    value=$2
-    previousVersion=$(grep "${key}"  ${appListFile} | awk '{print $NF}')
-
-    if [[ "$previousVersion" != "$value" ]]; then
-        if [[ -n $previousVersion ]]; then 
-            echo "New App $key -> $value"
-            # app not found - add to the  appListFile 
-            echo "$key $value" >>  ${appListFile}
-        else
-            echo "Updating $key from $previousVersion -> $value"
-            # update the  appListFile 
-            sed -i "" "s/^$key .*/$key $value/g" ${appListFile}
-        fi
-        formattedOutput+="$key $value, "
-    else
-        echo "No Update for $key -> $value"
-    fi
-}
-
 # process each label
 for label in $labels; do
     echo "Processing label $label"
