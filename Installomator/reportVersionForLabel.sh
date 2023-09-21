@@ -38,12 +38,12 @@ labelFromInstallomator() {
 
 # process each label
 for label in $labels; do
-    echo "Processing label $label"
+    echo "Processing label $label ..."
 
     # get label fragment from Installomator repo
     fragment=$(curl -sL $(labelFromInstallomator $label))
     if [[ "$fragment" == *"404"* ]]; then
-        echo "no fragment for label $label"
+        echo "🚨 no fragment for label $label 🚨"
         continue
     fi
     
@@ -58,17 +58,17 @@ for label in $labels; do
         # read -s -k '?Press any key to continue.'
         if [[ "$previousVersion" != "$appNewVersion" ]]; then
             if [[ -z $previousVersion ]]; then 
-                echo "New App $name -> $appNewVersion"
+                echo "⭐️ New App $name -> $appNewVersion"
                 # app not found - add to the  appListFile 
                 echo "$name $appNewVersion" >> ${appListFile}
             else
-                echo "Updating $name from $previousVersion -> $appNewVersion"
+                echo "📡 Updating $name from $previousVersion -> $appNewVersion"
                 # update the  appListFile 
                 sed -i "" "s/^$name .*/$name $appNewVersion/g"  ${appListFile}
             fi
             formattedOutput+="$name $appNewVersion, "
         else
-            echo "No Update for $name -> $appNewVersion"
+            echo "✅ No Update for $name -> $appNewVersion"
         fi
     fi
     unset appNewVersion
