@@ -9,3 +9,34 @@ Labels are assumed to have the same file name as the label name. When downloaded
 Results are also saved to a simple text file and re-used on the next run. The final report only includes labels that are new or updated since the last run.
 
 There is no swiftDialog integration at this point but an interactive option may be something that gets planned.
+
+Raw output will look something like:
+
+```bash
+$ ./reportVersionForLabel.sh
+Processing label microsoftedge ...
+📡 Updating Microsoft Edge from 117.0.2045.35 -> 117.0.2045.40
+Processing label alfred ...
+📡 Updating Alfred from 5.1.2 -> 5.1.3
+Processing label caffeine ...
+✅ No Update for Caffeine -> 1.1.3
+Processing label citrixworkspace ...
+✅ No Update for Citrix Workspace -> 23.08.0.57
+Processing label coconutbattery ...
+📡 Updating coconutBattery from 3.9.13 -> 3.9.14
+Processing label adobecreativeclouddesktop ...
+✅ No Update for Adobe Creative Cloud -> 6.0.0.571
+Processing label cyberduck ...
+✅ No Update for Cyberduck -> 8.6.3
+Processing label firefoxpkg ...
+📡 Updating Firefox from 117.0.1 -> 118.0
+Processing label gimp ...
+✅ No Update for GIMP -> 2.10.34
+Processing label googlechromepkg ...
+📡 Updating Google Chrome from 117.0.5938.88 -> 117.0.5938.92
+**** text for report
+
+Microsoft Edge 117.0.2045.40, Alfred 5.1.3, coconutBattery 3.9.14, Firefox 118.0, Google Chrome 117.0.5938.92 
+
+****
+``` 
