@@ -47,11 +47,16 @@ for label in $labels; do
         continue
     fi
     
-    # trim the first lines and anything from ;; onward since we want to eval the label, not use it in a switch statement
-    # this assumes the first line after the pattern is `name=`
-    fragment=$(echo "$fragment" | sed -n '/name=/,$p' | sed -e '/;;/,$d')
-
-    eval $fragment
+    # Process the fragment in a case block which should match the label
+    caseStatement="
+    case $label in
+        $fragment
+        *)
+            echo \"$label didn't match anything in the case block - weird.\"
+        ;;
+    esac
+    "
+    eval $caseStatement
     
     if [[ -n $name ]]; then
         previousVersion=$(grep -e "^${name} " ${appListFile} | awk '{print $NF}')
