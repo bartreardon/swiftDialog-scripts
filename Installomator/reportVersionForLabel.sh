@@ -60,7 +60,6 @@ for label in $labels; do
     
     if [[ -n $name ]]; then
         previousVersion=$(grep -e "^${name} " ${appListFile} | awk '{print $NF}')
-        # read -s -k '?Press any key to continue.'
         if [[ "$previousVersion" != "$appNewVersion" ]]; then
             if [[ -z $previousVersion ]]; then 
                 echo "⭐️ New App $name -> $appNewVersion"
