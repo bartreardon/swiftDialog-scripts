@@ -1,12 +1,12 @@
 #!/bin/zsh
+#set -x
 
 # This script will pop up a mini dialog with progress of a jamf pro policy
 
 jamfPID=""
 jamf_log="/var/log/jamf.log"
-dialog_log=$(mktemp /var/tmp/dialog.XXX)
-chmod 644 ${dialog_log}
-scriptlog="/var/tmp/jamfprogress.log"
+dialogBinary="/usr/local/bin/dialog"
+dialog_log=$(mktemp -u /var/tmp/dialog.XXX)
 count=0
 
 if [[ -z $4 ]] || [[ -z $5 ]]; then
@@ -14,9 +14,10 @@ if [[ -z $4 ]] || [[ -z $5 ]]; then
     quitScript
 fi
 
-policyname="${4}" # jamf parameter $4
-policyTrigger="${5}"   # jamf parameter $5
-icon="${6}"       # jamf parameter $6
+policyname="${4}"                               # jamf parameter $4
+policyTrigger="${5}"                            # jamf parameter $5
+icon="${6}"                                     # jamf parameter $6
+scriptLog="${7:-"/var/tmp/jamfprogress.log"}"   # jamf parameter $7: Script Log Location [ /var/tmp/jamfprogress.log] (i.e., Your organization's default location for client-side logs)
 
 if [[ -z $6 ]]; then
     icon=$( defaults read /Library/Preferences/com.jamfsoftware.jamf.plist self_service_app_path )
@@ -36,7 +37,16 @@ function dialogcmd() {
 
 function launchDialog() {
 	updatelog "launching main dialog"
-    open -a "/Library/Application Support/Dialog/Dialog.app" --args --mini --title "${policyname}" --icon "${icon}" --message "Please wait while ${policyname} is installed …" --progress 8 --commandfile "${dialog_log}"
+    $dialogBinary \
+    --mini \
+    --title "${policyname}" \
+    --icon "${icon}" \
+    --message "Please wait while ${policyname} is installed …" \
+    --progress \
+    --moveable \
+    --position bottomright \
+    --commandfile "${dialog_log}" \
+    &
     updatelog "main dialog running in the background with PID $PID"
 }
 
@@ -48,7 +58,13 @@ function runPolicy() {
 function dialogError() {
 	updatelog "launching error dialog"
     errormsg="### Error\n\nSomething went wrong. Please contact IT support and report the following error message:\n\n${1}"
-    open -a "/Library/Application Support/Dialog/Dialog.app" --args --ontop --title "Jamf Policy Error" --icon "${icon}" --overlayicon caution --message "${errormsg}"
+    $dialogBinary \
+    --ontop \
+    --title "Jamf Policy Error" \
+    --icon "${icon}" \
+    --overlayicon caution \
+    --message "${errormsg}" \
+    &
     updatelog "error dialog running in the background with PID $PID"
 }
 
