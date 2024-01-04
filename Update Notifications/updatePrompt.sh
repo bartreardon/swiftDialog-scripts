@@ -42,6 +42,18 @@ iconForMajorVer() {
     fi
 }
 
+appleReleaseNotesURL() {
+    releaseVer=$1
+    securityReleaseURL="https://support.apple.com/en-au/HT201222"
+    HT201222=$(curl -sL ${securityReleaseURL})
+    releaseNotesURL=$(echo $HT201222 | grep "${releaseVer}</a>" | grep "macOS" | sed -r 's/.*href="([^"]+).*/\1/g')
+    if [[ -n $releaseNotesURL ]]; then
+        echo $releaseNotesURL
+    else
+        echo $securityReleaseURL
+    fi
+}
+
 json_value() { # Version 2023.7.24-1 - Copyright (c) 2023 Pico Mitchell - MIT License - Full license and help info at https://randomapplications.com/json_value
 	{ set -- "$(/usr/bin/osascript -l 'JavaScript' -e 'function run(argv) { let out = argv.pop(); if ($.NSFileManager.defaultManager.fileExistsAtPath(out))' \
 		-e 'out = $.NSString.stringWithContentsOfFileEncodingError(out, $.NSUTF8StringEncoding, ObjC.wrap()).js; if (/^\s*[{[]/.test(out)) out = JSON.parse(out)' \
@@ -73,18 +85,6 @@ getReleaseDateFor() {
             echo $(json_value 'AssetSets' 'macOS' $index 'PostingDate' "${appleProductJSON}")
         fi
     done
-}
-
-appleReleaseNotesURL() {
-    releaseVer=$1
-    securityReleaseURL="https://support.apple.com/en-au/HT201222"
-    HT201222=$(curl -sL ${securityReleaseURL})
-    releaseNotesURL=$(echo $HT201222 | grep "${releaseVer}</a>" | sed -r 's/.*href="([^"]+).*/\1/g')
-    if [[ -n $releaseNotesURL ]]; then
-        echo $releaseNotesURL
-    else
-        echo $securityReleaseURL
-    fi
 }
 
 dialogCheck() {
@@ -132,6 +132,7 @@ dialogInstall() {
 
 dialogcli="/usr/local/bin/dialog"
 jamfhelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+appdomain="com.orgname.updateprompt"
 
 OSVer=$(sw_vers | grep "ProductVersion" | awk '{print $NF}')
 majorVersion=$(getMajorVersion $OSVer)
@@ -142,12 +143,14 @@ computerName=${2:-$(hostname -s)}
 loggedInUser=${3:-$(stat -f%Su /dev/console)}
 requiredOSVer=${4:-$(getCurrentReleaseFor $OSVer)}
 daysUntilRequired=${5:-14}
-infolink=${6:-"$(appleReleaseNotesURL $OSVer)"}
 maxdeferrals=${6:-5}
-infolink=${7:-"$(appleReleaseNotesURL $OSVer)"}
+infolink=${7:-"$(appleReleaseNotesURL $requiredOSVer)"}
 supportText=${8}
 macosIcon=${9:-"$(iconForMajorVer $majorVersion)"}
 dialogVersion=${10:-"2.3.2"}  # required
+
+defarralskey="deferrals_${requiredOSVer}"
+blurscreen="noblur"
 
 requiredOSText="the latest version of macOS"
 dialogHeight=480
@@ -163,7 +166,7 @@ fi
 
 if [[ "$mode" == "test" ]]; then
     # set the OS ver to something old
-    OSVer="13.4.0"
+    OSVer="14.1.0"
 fi
 
 autoload is-at-least
@@ -179,13 +182,21 @@ fi
 # get latest release info
 latestRelease=$(getCurrentReleaseFor $OSVer)
 releaseDate=$(getReleaseDateFor $latestRelease)
+echo "Latest release is $latestRelease released on $releaseDate"
 requiredByDate=$(date -j -f %Y-%m-%d -v+${daysUntilRequired}d "$releaseDate" +%Y-%m-%d)
-requiredby="This update is required after **$(date -j -f %Y-%m-%d "${requiredByDate}" "+%A %B %d, %Y")**"
+requiredby="You will not be able to defer the update after **$(date -j -f %Y-%m-%d "${requiredByDate}" "+%A %B %d, %Y")**"
+
+# check if there's a defferalskey already
+deferralsExist=$(defaults read ${appdomain} ${defarralskey} 2>/dev/null || echo "false")
+echo "Deferrals exist: ${deferralsExist}"
 
 if [[ $today < $requiredByDate ]]; then
     echo "Update prompt not required until $requiredByDate"
-    exit 0
+    # work out remaining deferrals"
+    deferrals=$(defaults read ${appdomain} ${defarralskey} || echo ${maxdeferrals})
 else
+    # set deferrals to 0 if we're past the required date
+    deferrals=0
     echo "Update is now required. Requirement date $requiredByDate"
 fi
 
@@ -193,15 +204,7 @@ fi
 # check dialog is installed and up to date
 dialogCheck "$dialogVersion"
 
-defarralskey="deferrals_${requiredOSVer}"
-blurscreen="noblur"
 
-
-echo "Latest release is $latestRelease released on $releaseDate"
-
-# work out remaining deferrals"
-appdomain="au.csiro.macosupdates"
-deferrals=$(defaults read ${appdomain} ${defarralskey} || echo ${maxdeferrals})
 if [[ $1 == "test" ]]; then
 	echo "App domain is ${appdomain}"
 	echo "Defferal Key is ${defarralskey}"
@@ -244,8 +247,6 @@ overlayicon="/var/tmp/overlayicon.icns"
 
 button1text="Open Software Update"
 buttona1ction="open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane"
-#button2text="Contact the Service Centre"
-#button2action="https://go.csiro.au/FwLink/LogAFault"
 
 runDialog () {
     ${dialogcli} -p -o -d \
@@ -257,7 +258,7 @@ runDialog () {
                 --bannertitle \
                 --icon "${macosIcon}" \
                 --iconsize 180 \
-                --overlayicon "${overlay}" \
+                --overlayicon "${overlayicon}" \
                 --message "${message}" \
                 --infobuttontext "${infotext}" \
                 --infobuttonaction "${infolink}" \
@@ -280,11 +281,7 @@ runDialog () {
 }
 
 runJamfHelper () {
-    if [[ -e "/Library/Security/PolicyBanner.rtfd/logo_colour_100x100.png" ]]; then
-        icon="/Library/Security/PolicyBanner.rtfd/logo_colour_100x100.png"
-    else
-        icon="/System/Library/CoreServices/HelpViewer.app/Contents/Resources/AppIcon.icns"
-    fi
+    icon="/System/Library/CoreServices/HelpViewer.app/Contents/Resources/AppIcon.icns"
     "${jamfhelper}" -windowType utility -title "${title}" -description "${message}" -icon "${icon}" -button1 "Update" -button2 "More Info" -defaultButton 1
     exitcode=$?
     if [[ $exitcode == 0 ]]; then
