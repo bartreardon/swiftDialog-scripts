@@ -2,19 +2,19 @@
 
 ## updatePrompt.sh
 
-This script using swiftDialog to present a minimal update prompt with deferral that looks for the requires OS version and presents an update notification if the requirements are not met.
+This script uses swiftDialog to present a minimal update prompt with deferral that looks for the required OS version and presents an update notification if the requirements are not met.
 
 It uses the [SOFA](https://sofa.macadmins.io) feed for OS and patch information 
 
-It has very few optiona and is designed to be set and forget to notify users of software updates for their OS. It automatically determines the latest version of the installed OS so it's easy to keep running as an ongoing task and users will receive the update automatically when required. Sane update policies are encouraged.
+It has very few options and is designed to be set and forget in order to automatically notify users of software updates for their OS. It determines the latest availavle version of the installed OS so it's easy to keep running as an ongoing task and users will receive the update automatically when required. Sane update policies are encouraged.
 
 Supports macOS 12+
 
 ### Behaviour
 
-By default when it detects an update is available it will wait the specified time period before activating. If the user dismisses the dialog, a record of the deferral is kept. If the maximum number of deferrals is reached the dialog becomes increasingly obtrusive. If the installed OS is too old then the ability to defer is limited.
+By default when it detects an update is available it will wait the specified time period before activating. If the user dismisses the dialog, a record of the deferral is kept. If the maximum number of deferrals is reached the dialog becomes increasingly obtrusive. If the installed OS is too old then the ability to defer is limited. If the hardware is too old to run the latest version of macOS, the user will be notified.
 
-This script doesn't perform any actual installing and will simply re-direct the user to System Preferences/Settings -> Software Update panel. For a more full featured experience, I'd encourage the use of [Nudge](https://github.com/macadmins/nudge).
+This script doesn't perform any actual installing and will simply re-direct the user to System Preferences/Settings -> Software Update panel. For a more full featured and customisable experience, I'd encourage the use of [Nudge](https://github.com/macadmins/nudge).
 
 If the device is enrolled to Jamf Pro, the Self Service banner and icon are used for the banner and icon.
 
