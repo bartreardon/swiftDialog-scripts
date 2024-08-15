@@ -2,34 +2,51 @@
 
 ## updatePrompt.sh
 
-This script presents a [Nudge](https://github.com/macadmins/nudge) style update prompt with deferral that looks for the requires OS version and presents an update notification if the requirements are not met.
+This script using swiftDialog to present a minimal update prompt with deferral that looks for the requires OS version and presents an update notification if the requirements are not met.
 
-Can determine the latest version of the installed OS so easy to keep running as an ongoing policy and users will receive the update automatically (sane policy triggers/conditions are encouraged)
+It uses the [SOFA](https://sofa.macadmins.io) feed for OS and patch information 
 
-This script doesn't perform any actual installing and will simply re-direct the user to System Preferences/Settings -> Software Update panel.
+It has very few optiona and is designed to be set and forget to notify users of software updates for their OS. It automatically determines the latest version of the installed OS so it's easy to keep running as an ongoing task and users will receive the update automatically when required. Sane update policies are encouraged.
 
-### Arguments (all are optional and will use defaults if not set)
+Supports macOS 12+
+
+### Behaviour
+
+By default when it detects an update is available it will wait the specified time period before activating. If the user dismisses the dialog, a record of the deferral is kept. If the maximum number of deferrals is reached the dialog becomes increasingly obtrusive. If the installed OS is too old then the ability to defer is limited.
+
+This script doesn't perform any actual installing and will simply re-direct the user to System Preferences/Settings -> Software Update panel. For a more full featured experience, I'd encourage the use of [Nudge](https://github.com/macadmins/nudge).
+
+If the device is enrolled to Jamf Pro, the Self Service banner and icon are used for the banner and icon.
+
+### Arguments 
+
+_(all are optional and will use defaults if not set. Matches the Jamf Pro schema for script arguments but Jamf is not required to use this script)_
 
 ```
-1 - Path (if running locally you can use "test" as the first argument to force check against a different version of macOS instead of the current one - useful for validation testing)
-2 - computer Name
+1 - unused
+2 - computer name
 3 - logged in user
-4 - required OS Version - defaults to the latest release for the major version of the current OS
-5 - days Until Required - default 14. Days to wait after the release date to force the prompt. 0 = immediate
-6 - infolink - default "https://support.apple.com/en-au/HT201222". Long for the Info button
-7 - max deferrals - number of deferrals a user has. Default is 5. Set to 0 to disable
-8 - support Text - additional text you want inserted into the message (e.g. "For any questions please contact the [Help Desk](https://help.desk/link)"
-9 - Icon - defaults to the OS version icon for the current release (supports macOS 11, 12 and 13)
-10 - swiftDialog Version - default "2.3.2" - specifies the minimum version of swiftDialog for this script.
+4 - max deferrals - default 5
+     number of deferrals a user has. Set to 0 to disable
+5 - nag after days - default 7
+      number of days to wait until the notification is shows
+6 - Required after days - default 14
+      Days to notify the user that the update is manditory
+7 - Preference domain - default com.orgname.macosupdates
+     Domain that deferrals get recorded in.  
+8 - support Text
+     additional text you want inserted into the message (e.g. "For any questions please contact the [Help Desk](https://help.desk/link)"
+     This will be displayed below system and patch info in the help area when displayed
 ```
 
-<img width="550" alt="image" src="https://github.com/bartreardon/swiftDialog-scripts/assets/3598965/a03b2a29-7609-49f9-b36c-c000d90cb34e">
+<img width="550" alt="Screenshot 2024-08-15 at 10 36 23 PM" src="https://github.com/user-attachments/assets/4543c200-804f-4732-a930-6857599dc7af">
 
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/bf2e6ab1-07c4-4c76-9960-54933cf67de6">
 
 
 ## appupdate_with_deferral.sh
 
-Pop up a dialog to allow the user to defer the install of some application. Will require two policies, one to present the dialog, and another to perform the actual application install.
+A general pop up dialog to allow the user to defer the install of some application. Will require two policies, one to present the dialog, and another to perform the actual application install.
 
 This script is written to be used as a jamf pro policy. The parameters accepted are:
  
@@ -42,4 +59,3 @@ This script is written to be used as a jamf pro policy. The parameters accepted 
  
  When "Max deferrals" is met, the defer button will also trigger the install
  
- ![image](https://user-images.githubusercontent.com/3598965/161907703-cd309288-f8d7-4fd1-9ac5-95f8cf333e36.png)
