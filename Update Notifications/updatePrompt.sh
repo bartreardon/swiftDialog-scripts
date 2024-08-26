@@ -8,20 +8,21 @@
 ## update these as required with org specific text
 # app domain to store deferral history
 
-# text for the support message
-
-
-## end of org specific text
-
 autoload is-at-least
+
+# needs to run as root
+if [[ $EUID -ne 0 ]]; then
+    echo "This script must be run as root"
+    exit 1
+fi
 
 computerName=${2:-$(hostname)}
 loggedInUser=${3:-$(stat -f%Su /dev/console)}
 maxdeferrals=${4:-5}
 nag_after_days=${5:-7}
 required_after_days=${6:-14}
-appdomain=${6:-"com.orgname.macosupdates"}
 helpDeskText=${7:-"If you require assistance with this update, please contact the IT Help Desk"}
+appdomain=${8:-"com.orgname.macosupdate"}
 
 # get mac hardware info
 spData=$(system_profiler SPHardwareDataType)
@@ -40,7 +41,15 @@ width="950"
 height="570"
 days_since_security_release=0
 days_since_release=0
+local_store="/Library/Application Support/${appdomain}"
+update_required=false
 
+
+if [[ ! -d "${local_store}" ]]; then
+    mkdir -p "${local_store}"
+fi
+
+### Functions and whatnot
 
 # json function for parsing the SOFA feed
 json_value() { # Version 2023.7.24-1 - Copyright (c) 2023 Pico Mitchell - MIT License - Full license and help info at https://randomapplications.com/json_value
@@ -50,6 +59,52 @@ json_value() { # Version 2023.7.24-1 - Copyright (c) 2023 Pico Mitchell - MIT Li
 		-e 'out.length : undefined)) : (out instanceof Object ? out[key] : undefined)); if (out === undefined) throw "Failed to retrieve key/index: " + key })' \
 		-e 'return (out instanceof Object ? JSON.stringify(out, null, 2) : out) }' -- "$@" 2>&1 >&3)"; } 3>&1
 	[ "${1##* }" != '(-2700)' ] || { set -- "json_value ERROR${1#*Error}"; >&2 printf '%s\n' "${1% *}"; false; }
+}
+
+function echoToErr() {
+    echo "$@" 1>&2
+}
+
+function getSOFAJson() {
+    # get the latest data from SOFA feed - if this fails there's no point continuing
+    # SOFA feed URL
+    local SOFAURL="https://sofafeed.macadmins.io/v1/macos_data_feed.json"
+
+    # check the last update date on the url and convert to epoch time
+    local SOFAFeedLastUpdate=$(curl -s --compressed -I "${SOFAURL}" | grep "last-modified" | awk -F': ' '{print $NF}') 
+    local SOFAFeedLastUpdateEpoch=$(date -j -f "%a, %d %b %Y %T %Z" "${SOFAFeedLastUpdate}" "+%s" 2>/dev/null)
+    local SOFAJSON=""
+    local lastupdate="${local_store}/lastupdate"
+    local datafeed="${local_store}/macos_data_feed.json"
+    local lastupdatetime=0
+
+    # check /Library/Application Support/$appdomain/lastupdate
+    # if the last update is greater than the last update on the SOFA feed then use the local feed
+    # else get the feed from the URL
+    if [[ -e "${lastupdate}" ]]; then
+        lastupdatetime=$(cat "${lastupdate}")
+        if [[ $lastupdatetime -ge $SOFAFeedLastUpdateEpoch ]]; then
+            echoToErr "Using local SOFA feed"
+            SOFAJSON=$(cat "${datafeed}")
+        else
+            echoToErr "Getting SOFA feed from URL"
+            SOFAJSON=$(curl -s --compressed "${SOFAURL}")
+            echo $SOFAJSON > "${datafeed}"
+            echo $SOFAFeedLastUpdateEpoch > "${lastupdate}"
+        fi
+    else
+        echoToErr "Getting SOFA feed from URL"
+        SOFAJSON=$(curl -s --compressed "${SOFAURL}")
+        echo $SOFAJSON > "${datafeed}"
+        echo $SOFAFeedLastUpdateEpoch > "${lastupdate}"
+    fi
+
+    if [[ -z $SOFAJSON ]]; then
+        echoToErr "Failed to get SOFA feed"
+        exit 1
+    fi
+
+    echo $SOFAJSON
 }
 
 dialogCheck() {
@@ -64,9 +119,8 @@ dialogCheck() {
 	is-at-least $requiredVersion $installedappversion
 	local result=$?
 	if [ ! -e "${dialogApp}" ] || [ $result -ne 0 ]; then
+        echo "swiftDialog not found or out of date. Installing ..."
 		dialogInstall
-	else
-		echo "Dialog found. Proceeding..."
 	fi
 }
 
@@ -139,6 +193,11 @@ appleReleaseNotesURL() {
     fi
 }
 
+latestMacOSVersion() {
+    # get the latest version of macOS
+    json_value "OSVersions" "0" "Latest" "ProductVersion" "$SOFAFeed" 2>/dev/null
+}
+
 supportsLatestMacOS() {
     # check if the current hardware supports the latest macOS
     local model_id="$(system_profiler SPHardwareDataType | grep "Model Identifier" | awk -F': ' '{print $NF}')"
@@ -146,25 +205,67 @@ supportsLatestMacOS() {
     if [[ $model_id == "VirtualMac"* ]]; then
         return 0
     fi
-    # count of models
-    local model_count=$(json_value "OSVersions" "0" "SupportedModels" "=" "$SOFAFeed" 2>/dev/null)
-    for ((i=0; i<${model_count}; i++)); do
-        model=$(json_value "OSVersions" "0" "SupportedModels" "$i" "Identifiers" "$model_id" "$SOFAFeed" 2>/dev/null)
-        if [[ -n $model ]]; then
-            return 0
-        fi
-    done
+    # get latest fersion supported for this model from the feed
+    local latest_supported_os="$(json_value "Models" "$model_id" "OSVersions" "0" "$SOFAFeed" 2>/dev/null)"
+    if [[ $latest_supported_os -ge $(latestMacOSVersion | cut -d. -f1) ]]; then
+        return 0
+    fi
     return 1
 }
 
-latestMacOSVersion() {
-    # get the latest version of macOS
-    json_value "OSVersions" "0" "Latest" "ProductVersion" "$SOFAFeed" 2>/dev/null
+getDeferralCount() {
+    # get the deferrals count
+    local key=$1
+    if [[ ! -e "${local_store}/deferrals.plist" ]]; then
+        defaults write "${local_store}/deferrals.plist" ${key} -int 0
+    fi
+    defaults read "${local_store}/deferrals.plist" ${key} || echo 0
+}
+
+updateDefferalCount() {
+    # update the deferrals count
+    local key=$1
+    defaults write "${local_store}/deferrals.plist" ${key} -int $(( $(getDeferralCount $key) + 1 ))
+}
+
+openSoftwareUpdate() {
+    # open software update
+    if [[ $majorVersion -ge 14 ]]; then
+        /usr/bin/open "x-apple.systempreferences:com.apple.preferences.softwareupdate"
+    else
+        /usr/bin/open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane
+    fi 
+}
+
+dialogNotification() {
+    macOSVersion="$1"
+    majorVersion=$(echo $macOSVersion | cut -d. -f1)
+    if [[ $majorVersion -ge 14 ]]; then
+        openSU="/usr/bin/open 'x-apple.systempreferences:com.apple.preferences.softwareupdate'"
+    else
+        openSU="/usr/bin/open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane"
+    fi 
+    title="OS Update Available"
+    subtitle="macOS ${latest_version} is available for install"
+    message="Your ${modelName} ${computerName} is running macOS version ${local_version}"
+    button1text="Update"
+    button1ction="${openSU}"
+    button2text="Not Now"
+    button2action="$(defaults write "${local_store}/deferrals.plist" ${defarralskey} -int $(( $(getDeferralCount ${defarralskey}) + 1 )))"
+    /usr/local/bin/dialog --notification \
+                --title "${title}" \
+                --subtitle "${subtitle}" \
+                --message "${message}" \
+                --button1text "${button1text}" \
+                --button1action "${button1ction}" \
+                --button2text "${button2text}" \
+                --button2action "${button2action}"
 }
 
 # function to display the dialog
 runDialog () {
     updateRequired=0
+    local deferrals=$(getDeferralCount ${defarralskey})
     if [[ $deferrals -gt $maxdeferrals ]] || [[ $days_since_security_release -gt $required_after_days ]]; then
         updateRequired=1
     fi
@@ -227,17 +328,12 @@ runDialog () {
 
     # update the deferrals count
     if [[ $exitcode -lt 10 ]]; then
-        deferrals=$(( $deferrals + 1 ))
-        defaults write ${appdomain} ${defarralskey} -int ${deferrals}
+        updateDefferalCount ${appdomain} ${defarralskey}
     fi
 
     # open software update
     if [[ $updateselected -eq 1 ]]; then
-        if [[ $majorVersion -ge 14 ]]; then
-            open "x-apple.systempreferences:com.apple.preferences.softwareupdate"
-        else
-            /usr/bin/open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane
-        fi 
+        openSoftwareUpdate
     fi
 }
 
@@ -251,16 +347,19 @@ function incrementHeightByLines() {
 # check dialog is installed and up to date
 dialogCheck
 
-# get the latest data from SOFA feed
-SOFAFeed=$(curl -s --compressed "https://sofafeed.macadmins.io/v1/macos_data_feed.json")
-
-if [[ -z $SOFAFeed ]]; then
-    echo "Failed to get SOFA feed"
-    exit 1
-fi
+# get the SOFA feed
+SOFAFeed=$(getSOFAJson)
 
 # get the locally installed version of macOS
 local_version=$(sw_vers -productVersion)
+
+### if $1 is set to TEST then we want to initiate a test dialog with dummy data
+if [[ $1 == "TEST" ]]; then
+    echo "Running in test mode"
+    echo "forcing an older local version"
+    local_version=${2:-"11.6.1"}
+fi
+
 local_version_major=$(echo $local_version | cut -d. -f1)
 local_version_name=${macos_major_version[$local_version_major]}
 update_required=false
@@ -295,14 +394,6 @@ days_since_release=$(( (current_date - release_date) / 86400 ))
 defarralskey="deferrals_${latest_version}"
 deferrals=$(defaults read ${appdomain} ${defarralskey} || echo 0)
 
-# check if the latest version is greater than the local version
-if is-at-least $local_version $latest_version; then
-    # if the number of days since release is greater than the nag_after_days then we need to nag
-    if [[ $days_since_release -ge $nag_after_days ]]; then
-        update_required=true
-    fi
-fi
-
 # loop through security releases to find the one that matches the locally installed version of macOS
 security_index=0
 for ((i=0; i<${security_release_count}; i++)); do
@@ -312,7 +403,6 @@ for ((i=0; i<${security_release_count}; i++)); do
         break
     fi
 done
-
 # get the security release date
 security_release_date=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$security_index" "ReleaseDate" "$SOFAFeed" 2>/dev/null)
 days_since_security_release=$(( (current_date - $(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$security_release_date" "+%s" 2>/dev/null)) / 86400 ))
@@ -321,17 +411,42 @@ days_since_security_release=$(( (current_date - $(date -j -f "%Y-%m-%dT%H:%M:%SZ
 security_CVEs=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$security_index" "CVEs" "=" "$SOFAFeed" 2>/dev/null)
 security_ActivelyExploitedCVEs_count=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$security_index" "ActivelyExploitedCVEs" "=" "$SOFAFeed" 2>/dev/null)
 
-# if the cve count is greater than 0 then we need to update regardless of the days since release
-if [[ $security_ActivelyExploitedCVEs_count -gt 0 ]]; then
-    update_required=true
+
+# Perform checks to see if an update is required
+if ! is-at-least $latest_version $local_version; then
+    echo "Update is required: $latest_version is available for $local_version_name"
+    # if the number of days since release is greater than the nag_after_days then we need to nag
+    # else just send a notification
+    if [[ $days_since_release -ge $nag_after_days ]]; then
+        echo "Nag after period has passed. Obtrusive dialog will be displayed"
+        update_required=true
+    else
+        echo "Still in the update notification period. Sending notification only"
+        dialogNotification $latest_version
+        exit 0
+    fi
+
+    # if the cve count is greater than 0 then we need to update regardless of the days since release
+    if [[ $security_ActivelyExploitedCVEs_count -gt 0 ]]; then
+        echo "Actively exploited CVEs found. Update required"
+        update_required=true
+    fi
+
+    # if the number of days since the instaled version was released is greater than the required after days then we need to update
+    if [[ $days_since_security_release -ge $required_after_days ]]; then
+        echo "Days since security release is greater than required after days. Update required" 
+        update_required=true
+    fi
 fi
 
-# if the number of days since the instaled version was released is greater than the required after days then we need to update
-if [[ $days_since_security_release -ge $required_after_days ]]; then
-    update_required=true
-fi
+echo "After checks: update_required = $update_required"
 
-# build dialog message
+### END OF CHECKS
+
+
+### Build dialog message
+
+# Make any additions to the support text
 if [[ $security_ActivelyExploitedCVEs_count -gt 0 ]]; then
     supportText="**_There are currently $security_ActivelyExploitedCVEs_count actively exploited CVEs for macOS ${local_version}_**<br>**You must update to the latest version**"
     height=$(incrementHeightByLines 2)
@@ -349,14 +464,16 @@ current_macos_version_major=$(latestMacOSVersion | cut -d. -f1)
 if [[ $local_version_major -lt $current_macos_version_major ]] && supportsLatestMacOS; then
     additionalText="macOS ${current_macos_version_major} is available for install and supported on this device.  Please update to the latest OS release at your earliest convenience"
     height=$(incrementHeightByLines 2)
-elif ! supportsLatestMacOS; then
+else
     additionalText="**Your device does not support macOS ${current_macos_version_major}**  <br>Support for this device has ended"
     height=$(incrementHeightByLines 2)
 fi
 
+
+# build the full message text
 message="## **macOS ${latest_version}** is available for install
 
-Your ${modelName} \"${computerName}\" is running macOS version ${local_version}.<br>It has been **${days_since_security_release}** days since the last time the OS was updated.
+Your ${modelName} ${computerName} is running macOS version ${local_version}.<br>It has been **${days_since_security_release}** days since your last update.
 
 It is important that you update to **${latest_version}** at your earliest convenience.  <br>
  - Click the Security Release button for more details or the help button for device info.
@@ -377,7 +494,7 @@ helpText="### Device Information<br><br> \
   - Model: ${modelName}  <br> \
   - Serial Number: ${serialNumber}  <br> \
   - Installed macOS Version: ${local_version}  <br> \
-  - Latest available Version: ${latest_version}  <br> \
+  - Latest macOS Version: ${latest_version}  <br> \
   - Release Date: $(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$latest_version_release_date " "+%B %d, %Y" 2>/dev/null)  <br> \
   - Days Since Release: ${days_since_release}  <br> \
   - Required By: ${requiredby}  <br> \
@@ -392,7 +509,9 @@ ${helpDeskText}"
 # if the update is required then display the dialog
 # also echo to stdout so info is captured by jamf
 if [[ $update_required == true ]]; then
-    echo "Update required: $latest_version is available for $local_version_name"
+    echo "** Update is required **:"
+    echo "Latest version: $latest_version"
+    echo "Local version: $local_version"
     echo "Release date: $latest_version_release_date "
     echo "Days since release of $latest_version: $days_since_release"
     echo "Days since release of $local_version : $days_since_security_release"
