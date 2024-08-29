@@ -52,13 +52,32 @@ fi
 ### Functions and whatnot
 
 # json function for parsing the SOFA feed
-json_value() { # Version 2023.7.24-1 - Copyright (c) 2023 Pico Mitchell - MIT License - Full license and help info at https://randomapplications.com/json_value
-	{ set -- "$(/usr/bin/osascript -l 'JavaScript' -e 'function run(argv) { let out = argv.pop(); if ($.NSFileManager.defaultManager.fileExistsAtPath(out))' \
-		-e 'out = $.NSString.stringWithContentsOfFileEncodingError(out, $.NSUTF8StringEncoding, ObjC.wrap()).js; if (/^\s*[{[]/.test(out)) out = JSON.parse(out)' \
-		-e 'argv.forEach(key => { out = (Array.isArray(out) ? (/^-?\d+$/.test(key) ? (key = +key, out[key < 0 ? (out.length + key) : key]) : (key === "=" ?' \
-		-e 'out.length : undefined)) : (out instanceof Object ? out[key] : undefined)); if (out === undefined) throw "Failed to retrieve key/index: " + key })' \
-		-e 'return (out instanceof Object ? JSON.stringify(out, null, 2) : out) }' -- "$@" 2>&1 >&3)"; } 3>&1
-	[ "${1##* }" != '(-2700)' ] || { set -- "json_value ERROR${1#*Error}"; >&2 printf '%s\n' "${1% *}"; false; }
+json_value() {
+    local jsonpath="${1}"
+    local jsonstring="${2}"
+    local count=0
+    if [[ $jsonpath == *.count ]]; then
+        count=1
+        jsonpath=${jsonpath%.count}
+    fi
+
+    local type=$(echo "${jsonstring}" | /usr/bin/plutil -type "$jsonpath" -)
+    local results=$(echo "${jsonstring}" | /usr/bin/plutil -extract "$jsonpath" raw -)
+
+    if [[ $type == "array" ]]; then
+        if [[ $count == 0 ]]; then
+            for ((i=0; i<$results; i++)); do
+                echo "${jsonstring}" | /usr/bin/plutil -extract "$jsonpath.$i" raw -
+            done
+            return
+        fi
+    else
+        if [[ $count == 1 ]]; then
+            echo $results | /usr/bin/wc -l | /usr/bin/tr -d " "
+            return
+        fi
+    fi
+    echo "${results}"
 }
 
 function echoToErr() {
@@ -195,18 +214,20 @@ appleReleaseNotesURL() {
 
 latestMacOSVersion() {
     # get the latest version of macOS
-    json_value "OSVersions" "0" "Latest" "ProductVersion" "$SOFAFeed" 2>/dev/null
+    json_value "OSVersions.0.Latest.ProductVersion" "$SOFAFeed"
 }
 
 supportsLatestMacOS() {
     # check if the current hardware supports the latest macOS
-    local model_id="$(system_profiler SPHardwareDataType | grep "Model Identifier" | awk -F': ' '{print $NF}')"
+    if [[ -z $model_id ]]; then
+        model_id="$(system_profiler SPHardwareDataType | grep "Model Identifier" | awk -F': ' '{print $NF}')"
+    fi
     # if we are runniing on a model of type that starts with "VirtualMac"  then return true
     if [[ $model_id == "VirtualMac"* ]]; then
         return 0
     fi
     # get latest fersion supported for this model from the feed
-    local latest_supported_os="$(json_value "Models" "$model_id" "OSVersions" "0" "$SOFAFeed" 2>/dev/null)"
+    local latest_supported_os="$(json_value "Models.${model_id}.OSVersions.0" "$SOFAFeed")"
     if [[ $latest_supported_os -ge $(latestMacOSVersion | cut -d. -f1) ]]; then
         return 0
     fi
@@ -238,26 +259,26 @@ openSoftwareUpdate() {
 }
 
 dialogNotification() {
-    macOSVersion="$1"
-    majorVersion=$(echo $macOSVersion | cut -d. -f1)
+    local macOSVersion="$1"
+    local macOSLocalVersion="${2:-$local_version}"
+    local majorVersion=$(echo $macOSVersion | cut -d. -f1)
+    local openSU="/usr/bin/open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane"
     if [[ $majorVersion -ge 14 ]]; then
         openSU="/usr/bin/open 'x-apple.systempreferences:com.apple.preferences.softwareupdate'"
-    else
-        openSU="/usr/bin/open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane"
     fi 
-    title="OS Update Available"
-    subtitle="macOS ${latest_version} is available for install"
-    message="Your ${modelName} ${computerName} is running macOS version ${local_version}"
-    button1text="Update"
-    button1ction="${openSU}"
-    button2text="Not Now"
-    button2action="$(defaults write "${local_store}/deferrals.plist" ${defarralskey} -int $(( $(getDeferralCount ${defarralskey}) + 1 )))"
+    local title="OS Update Available"
+    local subtitle="macOS ${macOSVersion} is available for install"
+    local message="Your ${modelName} ${computerName} is running macOS version ${macOSLocalVersion}"
+    local button1text="Update"
+    local button1action="${openSU}"
+    local button2text="Not Now"
+    local button2action="$(defaults write "${local_store}/deferrals.plist" ${defarralskey} -int $(( $(getDeferralCount ${defarralskey}) + 1 )))"
     /usr/local/bin/dialog --notification \
                 --title "${title}" \
                 --subtitle "${subtitle}" \
                 --message "${message}" \
                 --button1text "${button1text}" \
-                --button1action "${button1ction}" \
+                --button1action "${button1action}" \
                 --button2text "${button2text}" \
                 --button2action "${button2action}"
 }
@@ -269,7 +290,6 @@ runDialog () {
     if [[ $deferrals -gt $maxdeferrals ]] || [[ $days_since_security_release -gt $required_after_days ]]; then
         updateRequired=1
     fi
-
     macOSVersion="$1"
     majorVersion=$(echo $macOSVersion | cut -d. -f1)
     message="$2"
@@ -287,8 +307,7 @@ runDialog () {
     infolink=$(appleReleaseNotesURL $macOSVersion)
     icon=${$(defaults read /Library/Preferences/com.jamfsoftware.jamf self_service_app_path 2>/dev/null):-"sf=applelogo"}
     button1text="Open Software Update"
-    button1ction="open -b com.apple.systempreferences /System/Library/PreferencePanes/SoftwareUpdate.prefPane"
-    button2text="Remind Me Tomorrow"
+    button2text="Remind Me Later"
     blurscreen=""
 
     if [[ $updateRequired -eq 1 ]]; then
@@ -327,8 +346,8 @@ runDialog () {
     fi
 
     # update the deferrals count
-    if [[ $exitcode -lt 10 ]]; then
-        updateDefferalCount ${appdomain} ${defarralskey}
+    if [[ $exitcode -lt 11 ]]; then
+        updateDefferalCount ${defarralskey}
     fi
 
     # open software update
@@ -357,7 +376,10 @@ local_version=$(sw_vers -productVersion)
 if [[ $1 == "TEST" ]]; then
     echo "Running in test mode"
     echo "forcing an older local version"
-    local_version=${2:-"11.6.1"}
+    local_version=${2:-"12.6.1"}
+    computerName="Test Mac"
+    serialNumber="C02C12345678"
+    model_id="MacBookPro14,1"
 fi
 
 local_version_major=$(echo $local_version | cut -d. -f1)
@@ -365,10 +387,10 @@ local_version_name=${macos_major_version[$local_version_major]}
 update_required=false
 
 # loop through feed count and match on local version
-feed_count=$(json_value "OSVersions" "=" "$SOFAFeed" 2>/dev/null)
+feed_count=$(json_value "OSVersions.count" "$SOFAFeed")
 feed_index=0
 for ((i=0; i<${feed_count}; i++)); do
-    feed_version_name=$(json_value "OSVersions" "$i" "OSVersion" "$SOFAFeed" 2>/dev/null)
+    feed_version_name=$(json_value "OSVersions.${i}.OSVersion" "$SOFAFeed")
     if [[ $feed_version_name == $local_version_name ]]; then
         feed_index=$i
         break
@@ -376,11 +398,11 @@ for ((i=0; i<${feed_count}; i++)); do
 done
 
 # get the count of security releases for the locally installed release of macOS
-security_release_count=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "=" "$SOFAFeed" 2>/dev/null)
+security_release_count=$(json_value "OSVersions.${feed_index}.SecurityReleases.count" "$SOFAFeed")
 
 # get the latest version of macOS for the installed release which will be the first item in the security releases array
-latest_version=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "0" "ProductVersion" "$SOFAFeed" 2>/dev/null)
-latest_version_release_date=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "0" "ReleaseDate" "$SOFAFeed" 2>/dev/null)
+latest_version=$(json_value "OSVersions.${feed_index}.SecurityReleases.0.ProductVersion" "$SOFAFeed")
+latest_version_release_date=$(json_value "OSVersions.${feed_index}.SecurityReleases.0.ReleaseDate" "$SOFAFeed")
 
 # get the number of days since the release date
 release_date=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$latest_version_release_date " "+%s" 2>/dev/null)
@@ -392,24 +414,28 @@ days_since_release=$(( (current_date - release_date) / 86400 ))
 
 # get the deferrals count
 defarralskey="deferrals_${latest_version}"
-deferrals=$(defaults read ${appdomain} ${defarralskey} || echo 0)
+#deferrals=$(defaults read ${appdomain} ${defarralskey} || echo 0)
+deferrals=$(getDeferralCount ${defarralskey})
 
 # loop through security releases to find the one that matches the locally installed version of macOS
 security_index=0
 for ((i=0; i<${security_release_count}; i++)); do
-    security_version=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$i" "ProductVersion" "$SOFAFeed" 2>/dev/null)
+    security_version=$(json_value "OSVersions.${feed_index}.SecurityReleases.${i}.ProductVersion" "$SOFAFeed")
     if [[ $security_version == $local_version ]]; then
         security_index=$i
         break
     fi
 done
 # get the security release date
-security_release_date=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$security_index" "ReleaseDate" "$SOFAFeed" 2>/dev/null)
+security_release_date=$(json_value "OSVersions.${feed_index}.SecurityReleases.${security_index}.ReleaseDate" "$SOFAFeed")
 days_since_security_release=$(( (current_date - $(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$security_release_date" "+%s" 2>/dev/null)) / 86400 ))
 
 # get the number of CVEs and actively exploited CVEs
-security_CVEs=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$security_index" "CVEs" "=" "$SOFAFeed" 2>/dev/null)
-security_ActivelyExploitedCVEs_count=$(json_value "OSVersions" "$feed_index" "SecurityReleases" "$security_index" "ActivelyExploitedCVEs" "=" "$SOFAFeed" 2>/dev/null)
+security_CVEs=$(json_value "OSVersions.${feed_index}.SecurityReleases.${security_index}.CVEs.count" "$SOFAFeed")
+security_ActivelyExploitedCVEs=$(json_value "OSVersions.${feed_index}.SecurityReleases.$security_index.ActivelyExploitedCVEs" "$SOFAFeed")
+security_ActivelyExploitedCVEs_count=$(json_value "OSVersions.${feed_index}.SecurityReleases.$security_index.ActivelyExploitedCVEs.count" "$SOFAFeed")
+
+#testing
 
 
 # Perform checks to see if an update is required
@@ -464,7 +490,7 @@ current_macos_version_major=$(latestMacOSVersion | cut -d. -f1)
 if [[ $local_version_major -lt $current_macos_version_major ]] && supportsLatestMacOS; then
     additionalText="macOS ${current_macos_version_major} is available for install and supported on this device.  Please update to the latest OS release at your earliest convenience"
     height=$(incrementHeightByLines 2)
-else
+elif ! supportsLatestMacOS; then
     additionalText="**Your device does not support macOS ${current_macos_version_major}**  <br>Support for this device has ended"
     height=$(incrementHeightByLines 2)
 fi
@@ -473,7 +499,7 @@ fi
 # build the full message text
 message="## **macOS ${latest_version}** is available for install
 
-Your ${modelName} ${computerName} is running macOS version ${local_version}.<br>It has been **${days_since_security_release}** days since your last update.
+Your ${modelName} ${computerName} is running macOS version ${local_version}.<br>It has been **${days_since_security_release}** days since this update was released.
 
 It is important that you update to **${latest_version}** at your earliest convenience.  <br>
  - Click the Security Release button for more details or the help button for device info.
@@ -501,6 +527,7 @@ helpText="### Device Information<br><br> \
   - Deferrals: ${deferrals} of ${maxdeferrals}  <br> \
   - Security CVEs: ${security_CVEs}  <br> \
   - Actively Exploited CVEs: ${security_ActivelyExploitedCVEs_count}  <br> \
+    - ${security_ActivelyExploitedCVEs}  <br> \
   - Update Required: ${update_required}  <br> \
 <br><br> \
 ### Service Desk Contact<br><br> \
