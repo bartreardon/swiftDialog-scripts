@@ -31,12 +31,12 @@ _(all are optional and will use defaults if not set. Matches the Jamf Pro schema
 5 - nag after days - default 7
       number of days to wait until the notification is shows
 6 - Required after days - default 14
-      Days to notify the user that the update is manditory
-7 - Preference domain - default com.orgname.macosupdates
-     Domain that deferrals get recorded in.  
-8 - support Text
+      Days to notify the user that the update is manditory  
+7 - support Text
      additional text you want inserted into the message (e.g. "For any questions please contact the [Help Desk](https://help.desk/link)"
      This will be displayed below system and patch info in the help area when displayed
+8 - Preference domain - default com.orgname.macosupdates
+     Preferences and feed cache will be stored in /Library/Applciation Support/$domain/
 ```
 
 <img width="550" alt="Screenshot 2024-08-15 at 10 36 23 PM" src="https://github.com/user-attachments/assets/4543c200-804f-4732-a930-6857599dc7af">
