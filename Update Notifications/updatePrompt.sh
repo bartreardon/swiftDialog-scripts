@@ -185,6 +185,7 @@ iconForMajorVer() {
     majorversion=$1
 
     declare -A macosIcon=(
+    [15]="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/c3/f6/3e/c3f63ed7-eb04-a348-2413-e895a7fb6b2d/ProductPageIcon.png/460x0w.webp"
     [14]="https://is1-ssl.mzstatic.com/image/thumb/Purple116/v4/53/7b/21/537b2109-d127-ba55-95da-552ec54b1d7e/ProductPageIcon.png/460x0w.webp"
     [13]="https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/01/11/29/01112962-0b21-4351-3e51-28dc1d7fe0a7/ProductPageIcon.png/460x0w.webp"
     [12]="https://is1-ssl.mzstatic.com/image/thumb/Purple116/v4/fc/5f/46/fc5f4610-1647-e0bb-197d-a5a447ec3965/ProductPageIcon.png/460x0w.webp"
